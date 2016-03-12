@@ -97,8 +97,6 @@ abline( h=0, lwd=.5 )
 set.seed(4321)
 n.sim <- 10000
 n.pds <- 10
-z <- rnorm( 100000 ); x.low <- mean( z[z<0] )
-    # The conditional mean having seen a very long negative sequence
 multi.x <- multi_ar1_sim( n.sim, n.pds, rho, 0, sig.eps )
 multi.theta.hat <- 0.0 * multi.x # multi_norm_thresh( n.sim, n.pds, rho, sig.eps )
 multi.y <- 1 * ( multi.x > multi.theta.hat )
