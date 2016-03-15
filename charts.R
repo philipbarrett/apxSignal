@@ -9,6 +9,7 @@ Rcpp::sourceCpp('momErr.cpp')
 library(filters)
 library(scales)
 library(MASS)
+library(nleqslv)
 
 ## The plot of mu and sigma updated
 XX <- seq( -4, 4, length.out = 401 )
@@ -17,14 +18,22 @@ sig.eps <- sqrt( 1 - rho ^ 2 )
 ff <- sapply( XX, mu_sig2_update, mu_sig2=c(0,sig.eps/sqrt(1-rho^2)), sig_eps=sig.eps, rho=rho, y=1 )
 gg <- sapply( XX, mu_sig2_update, mu_sig2=c(0,sig.eps/sqrt(1-rho^2)), sig_eps=sig.eps, rho=rho, y=0 )
 
-plot( XX, ff[1,], ylim=c(-4,4), type='l', lwd=2, col='blue' )
-lines( XX, gg[1,], ylim=c(-4,4), type='l', lwd=2, col='red' )
-abline( h=0, lwd=.5 )
-plot( XX, sqrt( ff[2,] ), type='l', lwd=2, col='blue' )
-lines( XX, sqrt( gg[2,] ), type='l', lwd=2, col='red' )
+pdf('/home/philip/Dropbox//2016/Research/thesis/charts/mu_prime.pdf')
+  plot( XX, ff[1,], ylim=c(-4,4), type='l', lwd=2, col='blue', xlab=expression(psi), 
+        ylab=expression(paste(mu, "'" ) ) )
+  lines( XX, gg[1,], ylim=c(-4,4), type='l', lwd=2, col='red' )
+  abline( h=0, lwd=.5 )
+  legend('topleft', c('y=1', 'y=0'), lwd=2, col=c('blue', 'red'), bty='n' )
+dev.off()
 
+pdf('/home/philip/Dropbox//2016/Research/thesis/charts/sigma_prime.pdf')
+  plot( XX, sqrt( ff[2,] ), type='l', lwd=2, col='blue', xlab=expression(psi), 
+        ylab=expression(paste(sigma^2, "'" ) ) )
+  lines( XX, sqrt( gg[2,] ), type='l', lwd=2, col='red' )
+  legend('right', c('y=1', 'y=0'), lwd=2, col=c('blue', 'red'), bty='n' )
+dev.off()
 ### Create the simulations for comparing the threshold and other filters ###
-set.seed(12345)
+set.seed(654)
 theta.hat <- 0
 
 # The UKF parameters #
@@ -59,6 +68,39 @@ thresh.gf <- gauss_filter( mu.sig2.0, rep(0,K), sig.eps, rho, v.y )
 # The threshold filter
 
 #### THIS CHART INCLUDED ####
+pdf('/home/philip/Dropbox//2016/Research/thesis/charts/dyn_thresh.pdf')
+  plot( c(1,K), range( c( v.x, thresh[,1] + sqrt(thresh[,2]), 
+                  thresh[,1] - sqrt(thresh[,2]) ) ), type='n', xlab='Period', 
+        ylab='x' )
+  points( 1:K, 1.02 * v.y - .01, pch=19, col=alpha('darkgreen', .5), cex=.5 )
+  lines( 1:K, thresh[-(K+1),1], col='blue', lwd=2 )
+  lines( 1:K, thresh[-(K+1),1] + sqrt(thresh[-(K+1),2]), col='blue', lty=2 )
+  lines( 1:K, thresh[-(K+1),1] - sqrt(thresh[-(K+1),2]), col='blue', lty=2 )
+  lines( 1:K, v.x, lwd=2 )
+  legend( 'topright', c( 'x', 'Threshold filter mean', 
+                            'Plus/minus one standard deviation', 'Signal' ), 
+          lwd=c(2,2,1,0), lty=c(1,1,2, NA), pch=c(NA,NA,NA,19), bty='n',
+          col=c( 'black','blue', 'blue', alpha( 'darkgreen', .5) ))
+  abline( h=0, lwd=.5 )
+dev.off()
+
+mu.sig.bar.fun <- function( mu.sig.bar, y ){
+  out <- mu.sig.bar - mu_sig2_update( mu.sig.bar, theta.hat, sig.eps, rho, y )
+}
+
+mu.sig.bar.1 <- nleqslv( c( 1, .5 ), mu.sig.bar.fun, y=1 )
+mu.sig.bar.0 <- nleqslv( c( 1, .5 ), mu.sig.bar.fun, y=0 )
+
+pdf('/home/philip/Dropbox//2016/Research/thesis/charts/xsect_thresh.pdf')
+  plot( thresh[-(1:5),1], thresh[-(1:5),2], xlab=expression(mu), ylab=expression(sigma^2),
+        pch=19, col='blue', cex=.5, xlim=c(-1,1), ylim=c(.2, .5) )
+  points( c( mu.sig.bar.1$x[1], mu.sig.bar.0$x[1] ), 
+          c( mu.sig.bar.1$x[2], mu.sig.bar.0$x[2] ), pch=19 )
+  legend( 'bottomright', c('Mean-variance pairs', 'Limit point'), pch=19,
+          col=c('blue','black'), bty='n' )
+dev.off()
+
+
 plot( c(1,K), range( c(thresh.ukf$m, v.x, thresh[,1]) ), type='n', xlab='Period', 
       ylab='x' )
 points( 1:K, 1.1 * sd(v.x) * ( 2*v.y-1 ), pch=19, col=alpha('darkgreen', .5), cex=.5 )
