@@ -99,7 +99,7 @@ abline( h=0, lwd=.5 )
 
 #### Now generate a bunch of simulations and see the properties of the errors ###
 set.seed(4321)
-n.sim <- 10000
+n.sim <- 100000
 n.pds <- 20
 multi.x <- multi_ar1_sim( n.sim, n.pds, rho, 0, sig.eps )
 multi.theta.hat <- 0.0 * multi.x # multi_norm_thresh( n.sim, n.pds, rho, sig.eps )
@@ -118,23 +118,37 @@ rmse.gf <- apply( err.gf, 2, sd )
 mse.gf <- apply( err.gf, 2, var )
 
 sig.mean <- apply( sqrt( multi.thresh$sig2 ), 2, mean )
-multi.thresh.ukf <- list( m.pred=0*multi.thresh$mu, P.pred=0*multi.thresh$sig2 )
-for( i in 1:n.sim ){
-  temp <- ukf.compute( 0, sig.eps^2, multi.y[,i], f, g, Q, R, 1, 
-                       alpha=1, kappa=kappa, quad = F )
-  multi.thresh.ukf$m.pred[i,] <- temp$m.pred
-  multi.thresh.ukf$P.pred[i,] <- temp$P.pred
-}
-err.ukf <- multi.thresh.ukf$m.pred[,-(n.pds+1)] - t( multi.x )
-bias.ukf <- apply( err.ukf, 2, mean )
-rmse.ukf <- apply( err.ukf, 2, sd )
-mse.ukf <- apply( err.gf, 2, var )
+
+# multi.thresh.ukf <- list( m.pred=0*multi.thresh$mu, P.pred=0*multi.thresh$sig2 )
+# for( i in 1:n.sim ){
+#   temp <- ukf.compute( 0, sig.eps^2, multi.y[,i], f, g, Q, R, 1, 
+#                        alpha=1, kappa=kappa, quad = F )
+#   multi.thresh.ukf$m.pred[i,] <- temp$m.pred
+#   multi.thresh.ukf$P.pred[i,] <- temp$P.pred
+# }
+# err.ukf <- multi.thresh.ukf$m.pred[,-(n.pds+1)] - t( multi.x )
+# bias.ukf <- apply( err.ukf, 2, mean )
+# rmse.ukf <- apply( err.ukf, 2, sd )
+# mse.ukf <- apply( err.gf, 2, var )
 
 #### THIS CHART INCLUDED ####
-plot( 1:n.pds, rmse.ukf, col='red', lty=2, lwd=2, type='l', xlab='Periods', ylab='RMSE' )
-lines( 1:n.pds, rmse.gf, col='red', lwd=2 )
+# plot( 1:n.pds, rmse.ukf, col='red', lty=2, lwd=2, type='l', xlab='Periods', ylab='RMSE' )
+plot( 1:n.pds, rmse.gf, col='red', lwd=2, type='l', xlab='Periods', ylab='RMSE' )
+# lines( 1:n.pds, rmse.gf, col='red', lwd=2 )
 lines( 1:n.pds, rmse, col='blue', lwd=2 )
 # lines( 1:20, sqrt(apply(multi.gauss$sig2[,-(n.pds+1)],2,mean)), lty=2, col='red' )
+
+plot( 1:20, apply(multi.x, 1, sd), lwd=2, type='l', xlab='Periods', 
+      ylab='State sd' )
+tot.var.thresh <- apply(multi.thresh$sig2[,-(n.pds+1)],2,mean) + apply(multi.thresh$mu[,-(n.pds+1)],2,var)
+tot.var.gf <- apply(multi.gauss$sig2[,-(n.pds+1)],2,mean) + apply(multi.gauss$mu[,-(n.pds+1)],2,var)
+lines( 1:20, sqrt(tot.var.thresh), lwd=2, col='blue' )
+lines( 1:20, sqrt(tot.var.gf), lwd=2, col='red' )
+legend( 'bottomright', c('State variance', 'Total variance: Threshold filter', 'Total variance: Exact Gaussian filter'),
+        bty='n', lwd=2, col=c( 'black', 'blue', 'red' ) )
+
+plot( 1:20, 1 - tot.var.gf / apply(multi.x, 1, var), lwd=2, col='red', type='l' )
+lines( 1:20, 1 - tot.var.thresh / apply(multi.x, 1, var), lwd=2, col='blue' )
 
 
 #### NOW DO CONDITIONAL BIAS CHARTS ####
