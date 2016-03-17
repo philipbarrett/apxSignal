@@ -1,4 +1,7 @@
 
+rm(list=ls())
+Rcpp::sourceCpp('momErr.cpp')
+library(parallel)
 
 this.err.markov <- function( rho, n.pds, n.markov, burn ){
   message('rho = ', rho)
@@ -15,8 +18,8 @@ this.err.markov <- function( rho, n.pds, n.markov, burn ){
       # Create the moments of the various filters
   
   markov.sig.ave <- sapply( mean( markov.mom[,'sig2'] ), function(x) c( mu=x^.5, sig2=x, skew=x ^ (3/2) ) )
-  thresh.err <- apply( abs( cbind( thresh[-1,], 0 ) - markov.mom )[-(1:burn),], 2, mean ) / markov.mom.ave
-  gf.err <- apply( abs( cbind( gf[-1,], 0 ) - markov.mom )[-(1:burn),], 2, mean ) / markov.mom.ave
+  thresh.err <- apply( abs( cbind( thresh[-1,], 0 ) - markov.mom )[-(1:burn),], 2, mean ) / markov.sig.ave
+  gf.err <- apply( abs( cbind( gf[-1,], 0 ) - markov.mom )[-(1:burn),], 2, mean ) / markov.sig.ave
       # Error on the two filters relative to the distribution sd
   
   markov.cdf <- t(apply( markov$filter, 1, cumsum ))[ -(1:burn), ]
@@ -41,13 +44,38 @@ this.err.markov <- function( rho, n.pds, n.markov, burn ){
 mu <- 0
 rho <- .95
 sig.eps <- sqrt( 1 - rho ^ 2 )
-n.pds <- 10100
-n.markov <- 500
-burn <- 1000
+n.pds <- 2100
+n.markov <- 200
+burn <- 100
+n.rho <- 40
 
-v.rho=seq( 0, .95, length.out=20 )
-l.err <- mclapply( v.rho, this.err.markov, n.pds=n.pds, n.markov=n.markov, burn=burn )
+v.rho=seq( 0, .975, length.out=n.rho )
+l.err <- lapply( v.rho, this.err.markov, n.pds=n.pds, n.markov=n.markov, burn=burn )
+# l.err <- mclapply( v.rho, this.err.markov, n.pds=n.pds, n.markov=n.markov, burn=burn )
 
 max.cdf <- sapply( l.err, function(x) c( x$rho, x$cdf[,'max'] ) )
-plot( max.cdf[1,], max.cdf['gaussian',], type='l' )
-lines( max.cdf[1,], max.cdf['threshold',], type='l', col=2 )
+pdf('/home/philip/Dropbox//2016/Research/thesis/charts/cdf_err.pdf')
+plot( max.cdf[1,], max.cdf['gaussian',], type='l', xlim=c(0,1), 
+      xlab=expression(rho), ylab='Max cdf error', col='red', lwd=2 )
+lines( max.cdf[1,], max.cdf['threshold',], type='l', col='blue', lwd=2 )
+legend( 'topleft', c('Threshold filter', 'Exact Gaussian filter'), lwd=2, 
+        col=c('blue', 'red'), bty='n' )
+dev.off()
+
+mu.err <- sapply( l.err, function(x) c( x$rho, x$mom[,'mu'] ) )
+pdf('/home/philip/Dropbox//2016/Research/thesis/charts/mu_err.pdf')
+plot( mu.err[1,], mu.err['gaussian',], type='l', xlim=c(0,1), 
+      xlab=expression(rho), ylab=expression( paste( 'Ave abs error: ', mu ) ), col='red', lwd=2 )
+lines( mu.err[1,], mu.err['threshold',], type='l', col='blue', lwd=2 )
+legend( 'topleft', c('Threshold filter', 'Exact Gaussian filter'), lwd=2, 
+        col=c('blue', 'red'), bty='n' )
+dev.off()
+
+sig.err <- sapply( l.err, function(x) c( x$rho, sqrt( x$mom[,'sig2'] ) ) )
+pdf('/home/philip/Dropbox//2016/Research/thesis/charts/mu_err.pdf')
+plot( sig.err[1,], sig.err['gaussian',], type='l', xlim=c(0,1), 
+      xlab=expression(rho),  ylab=expression( paste( 'Ave abs error: ', sigma ) ), col='red', lwd=2 )
+lines( sig.err[1,], sig.err['threshold',], type='l', col='blue', lwd=2 )
+legend( 'topleft', c('Threshold filter', 'Exact Gaussian filter'), lwd=2, 
+        col=c('blue', 'red'), bty='n' )
+dev.off()
