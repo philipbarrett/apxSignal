@@ -78,7 +78,7 @@ pdf('/home/philip/Dropbox//2016/Research/thesis/charts/dyn_thresh.pdf')
   lines( 1:K, thresh[-(K+1),1] - sqrt(thresh[-(K+1),2]), col='blue', lty=2 )
   lines( 1:K, v.x, lwd=2 )
   legend( 'topright', c( 'x', 'Threshold filter mean', 
-                            'Plus/minus one standard deviation', 'Signal' ), 
+                            'Plus/minus one std dev', 'Signal' ), 
           lwd=c(2,2,1,0), lty=c(1,1,2, NA), pch=c(NA,NA,NA,19), bty='n',
           col=c( 'black','blue', 'blue', alpha( 'darkgreen', .5) ))
   abline( h=0, lwd=.5 )
@@ -98,6 +98,32 @@ pdf('/home/philip/Dropbox//2016/Research/thesis/charts/xsect_thresh.pdf')
           c( mu.sig.bar.1$x[2], mu.sig.bar.0$x[2] ), pch=19 )
   legend( 'bottomright', c('Mean-variance pairs', 'Limit point'), pch=19,
           col=c('blue','black'), bty='n' )
+dev.off()
+
+pdf('/home/philip/Dropbox//2016/Research/thesis/charts/dyn_gf.pdf')
+  plot( c(1,K), range( c( v.x, thresh.gf[,1] + sqrt(thresh.gf[,2]), 
+                          thresh.gf[,1] - sqrt(thresh.gf[,2]) ) ), type='n', xlab='Period', 
+        ylab='x' )
+  lines( 1:K, thresh[-(K+1),1], col='blue', lwd=2 )
+  points( 1:K, 1.02 * v.y - .01, pch=19, col=alpha('darkgreen', .5), cex=.5 )
+  lines( 1:K, thresh.gf[-(K+1),1], col='red', lwd=2 )
+  lines( 1:K, thresh.gf[-(K+1),1] + sqrt(thresh.gf[-(K+1),2]), col='red', lty=2 )
+  lines( 1:K, thresh.gf[-(K+1),1] - sqrt(thresh.gf[-(K+1),2]), col='red', lty=2 )
+  lines( 1:K, v.x, lwd=2 )
+  legend( 'topright', c( 'x', 'Exact Gaussian filter mean', 
+                         'Plus/minus one std dev', 'Threshold filter mean', 'Signal' ), 
+          lwd=c(2,2,1,2,0), lty=c(1,1,2,1, NA), pch=c(NA,NA,NA,NA,19), bty='n',
+          col=c( 'black','red', 'red', 'blue', alpha( 'darkgreen', .5) ))
+  abline( h=0, lwd=.5 )
+dev.off()
+
+pdf('/home/philip/Dropbox//2016/Research/thesis/charts/xsect_gf.pdf')
+  plot( thresh.gf[-(1:20),1], thresh.gf[-(1:20),2], xlab=expression(mu), ylab=expression(sigma^2),
+        pch=19, col='red', cex=.5, xlim=c(-1,1), ylim=c(.2, .5) )
+#   points( c( mu.sig.bar.1$x[1], mu.sig.bar.0$x[1] ), 
+#           c( mu.sig.bar.1$x[2], mu.sig.bar.0$x[2] ), pch=19 )
+  legend( 'bottomright', c('Mean-variance pairs', 'Limit point'), pch=19,
+          col=c('red','black'), bty='n' )
 dev.off()
 
 

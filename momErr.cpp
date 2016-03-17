@@ -261,7 +261,147 @@ List multi_gauss_filter( arma::mat x, arma::mat theta_hat, arma::imat y,
   return out ;
 }
 
+// [[Rcpp::export]]
+double trunc_mean( double a, double b, double mu, double sig ){
+// Computes the mean of a normal truncated to lie in [a,b]
+  boost::math::normal norm_dist( 0, 1 ) ;
+      // A normal distribution
+  double a_norm = ( a - mu ) / sig ;
+  double b_norm = ( b - mu ) / sig ;
+      // The normalized limits
+  double out = mu + sig * ( pdf( norm_dist, a_norm ) - pdf( norm_dist, b_norm ) ) / 
+                              ( cdf( norm_dist, b_norm ) - cdf( norm_dist, a_norm ) ) ;
+  return out ;
+}
 
-// To add:
-// 1) mu, sigma updating
-// 2) measurement of RMSE and bias @ each step
+// [[Rcpp::export]]
+List norm_split( double mu, double sig, int n, bool spread=false ){
+// Creates the splits for a discretized normal
+  vec quantiles(n+1) ;
+  for( int i = 0 ; i < n + 1 ; i++ ) quantiles(i) = (double)(i) / n ;
+      // The quantiles
+  if( spread ) quantiles = quantiles - .15 * sin( quantiles * 2 * datum::pi ) ;
+      // Use sin curve to spread the quantile targets
+  vec b(n+1);
+  boost::math::normal norm_dist( mu, sig ) ;
+  b(0) = -datum::inf ;
+  b(n) = datum::inf ;
+  for( int i = 1 ; i < n ; i++ ) b(i) = quantile( norm_dist, quantiles(i) ) ;
+      // The quantile values
+  vec m(n) ;
+  for( int i = 0 ; i < n ; i++ ) m(i) = trunc_mean( b(i), b(i+1), mu, sig ) ;
+      // The conditional means
+  List out ;
+  out["q"] = quantiles ;
+  out["m"] = m ;
+  out["b"] = b ;
+  return out ;
+}
+
+// [[Rcpp::export]]
+arma::rowvec pt_evolve( double pt, double eps, double rho, double mu, arma::vec b ){
+// Evolves a single mass-point through the AR(1) when the cutoffs for the
+// discretization are given by b.  Returns a vector of weights in each b range
+  boost::math::normal norm_dist( rho * pt + ( 1 - rho ) * mu, eps ) ;
+      // The normal distribution for the evolution of the point
+  int n = b.n_elem - 1 ;
+  rowvec out(n) ;
+  for( int i=0 ; i < n ; i++ ) out(i) = cdf( norm_dist, b(i+1) ) - cdf( norm_dist, b(i) ) ;
+      // Fill in the weights
+  return out ;
+}
+
+// [[Rcpp::export]]
+List markov_disc( double mu, double eps, double rho, int n ){
+// Discretize an AR(1)
+  double sig = eps / sqrt( 1 - pow( rho, 2 ) ) ;
+      // The unconditional variance
+  List out = norm_split( mu, sig, n, true ) ;
+      // Initialize the output
+  vec m = out["m"] ;
+  vec b = out["b"] ;
+      // Extra output
+  mat trans(n,n) ;
+  for( int i = 0 ; i < n ; i++ ) trans.row(i) = pt_evolve( m(i), eps, rho, mu, b ) ;
+      // The transition matrix
+  out["trans"] = trans ;
+  return out ;
+}
+
+// [[Rcpp::export]]
+arma::rowvec markov_filter( arma::mat trans, arma::vec b, arma::rowvec dist, double x_hat, int y ){
+// Computes the evolution of the threshold problem with a high-state markov approximation
+  int n = b.n_elem - 1 ;
+      // The size of the approx
+  rowvec trunc(n) ;
+  if( y == 1 ){
+    for( int i = 0 ; i < n ; i ++ ){
+      if( b(i+1) < x_hat ){
+        trunc(i) = 0 ;
+      }else{
+        if( b(i) > x_hat ){
+          trunc(i) = dist(i) ;
+        }else{
+          trunc(i) = dist(i) * ( b(i+1) - x_hat ) / ( b(i+1) - b(i) ) ;
+        }
+      }
+    }
+  }
+  if( y == 0 ){
+    for( int i = 0 ; i < n ; i ++ ){
+      if( b(i+1) < x_hat ){
+        trunc(i) = dist(i) ;
+      }else{
+        if( b(i) > x_hat ){
+          trunc(i) = 0 ;
+        }else{
+          trunc(i) = dist(i) * ( x_hat - b(i) ) / ( b(i+1) - b(i) ) ;
+        }
+      }
+    }
+  }
+  trunc = trunc / sum( trunc ) ;
+      // Rescale
+  rowvec out = trunc * trans ;
+  return out ;
+      // The answer
+}
+
+// [[Rcpp::export]]
+List markov_filter_sim( double mu, double sig_eps, double rho, int n_markov, int n_pds ){
+// Simulates an AR(1) process and returns the Markov filter
+  vec sim = ar1_sim( n_pds, rho, sig_eps ) ;
+      // The simulation
+  vec x_hat = norm_thresh( n_pds, rho, sig_eps ) ;
+      // Generate the thrsholds
+  ivec y = signal_create( sim, x_hat ) ;
+      // The sequence of signals
+  mat markov = zeros( n_pds, n_markov ) ;
+      // Initialize the matrix of probabilities
+  List markov_def = markov_disc( mu, sig_eps, rho, n_markov ) ;
+      // The definition of the Markov filter
+  mat trans = markov_def["trans"] ;
+  vec b = markov_def["b"] ;
+  vec m = markov_def["m"] ;
+  vec q = markov_def["q"] ;
+      // Extract elements of the markov_def object
+  vec ergodic = q.tail(n_markov) - q.head(n_markov) ;
+  rowvec ergodic_r = conv_to<rowvec>::from(ergodic) ;
+      // Initialize with the ergodic dstribution
+  markov.row(0) = ergodic_r ;
+      // The first row of the Markov filter
+  for( int i = 1 ; i < n_pds ; i++ ){
+    markov.row(i) = markov_filter( trans, b, markov.row(i-1), x_hat(i), y(i) ) ;
+  }   // Fill in the markov filter
+  List out ;
+  out["sim"] = sim ;
+  out["x_hat"] = x_hat ;
+  out["y"] = y ;
+  out["b"] = b ;
+  out["q"] = q ;
+  out["m"] = m ;
+  out["filter"] = markov ;
+  out["ergodic"] = ergodic ;
+      // Format the output
+  return out ;
+}
